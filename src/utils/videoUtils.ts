@@ -6,7 +6,28 @@ export const startVideoRecording = async (): Promise<{
 }> => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    const recorder = new MediaRecorder(stream);
+    
+    // Check for supported MIME types
+    const mimeTypes = [
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm',
+      'video/mp4'
+    ];
+    
+    let selectedMimeType = '';
+    for (const mimeType of mimeTypes) {
+      if (MediaRecorder.isTypeSupported(mimeType)) {
+        selectedMimeType = mimeType;
+        break;
+      }
+    }
+    
+    if (!selectedMimeType) {
+      throw new Error('No supported MIME type found for MediaRecorder');
+    }
+
+    const recorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
     const chunks: BlobPart[] = [];
 
     recorder.addEventListener('dataavailable', (e) => {
@@ -33,7 +54,9 @@ export const stopVideoRecording = ({
 }): Promise<Blob> => {
   return new Promise((resolve) => {
     recorder.addEventListener('stop', () => {
-      const videoBlob = new Blob(chunks, { type: 'video/webm' });
+      // Determine the blob type based on the recorder's mimeType or default to webm
+      const mimeType = recorder.mimeType || 'video/webm';
+      const videoBlob = new Blob(chunks, { type: mimeType });
       stream.getTracks().forEach((track) => track.stop());
       resolve(videoBlob);
     });

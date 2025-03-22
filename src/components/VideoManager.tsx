@@ -33,6 +33,7 @@ const VideoManager: React.FC = () => {
     recorder: null,
     chunks: [],
   });
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
@@ -96,6 +97,9 @@ const VideoManager: React.FC = () => {
 
   const initializeCamera = async () => {
     try {
+      // Clear any previous error
+      setCameraError(null);
+      
       const { stream, recorder, chunks } = await startVideoRecording();
       setMediaState({ stream, recorder, chunks });
 
@@ -104,9 +108,10 @@ const VideoManager: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to initialize camera:', error);
+      setCameraError(error instanceof Error ? error.message : 'Unknown camera error');
       toast({
         title: "Camera Error",
-        description: "Could not access your camera. Please check permissions and try again.",
+        description: error instanceof Error ? error.message : "Could not access your camera. Please check permissions and try again.",
         variant: "destructive",
       });
     }
@@ -125,23 +130,40 @@ const VideoManager: React.FC = () => {
   };
 
   const startRecording = () => {
-    if (!mediaState.recorder) return;
-
-    mediaState.recorder.start();
-    setRecording(true);
-    setElapsedTime(0);
-
-    // Start timer to track elapsed recording time
-    timerRef.current = window.setInterval(() => {
-      setElapsedTime(prevTime => {
-        const newTime = prevTime + 1;
-        if (newTime >= maxDuration) {
-          stopRecording();
-          return maxDuration;
-        }
-        return newTime;
+    if (!mediaState.recorder) {
+      console.error('MediaRecorder not initialized');
+      toast({
+        title: "Recording Error",
+        description: "Media recorder is not initialized. Please try refreshing the page.",
+        variant: "destructive",
       });
-    }, 1000);
+      return;
+    }
+
+    try {
+      mediaState.recorder.start();
+      setRecording(true);
+      setElapsedTime(0);
+
+      // Start timer to track elapsed recording time
+      timerRef.current = window.setInterval(() => {
+        setElapsedTime(prevTime => {
+          const newTime = prevTime + 1;
+          if (newTime >= maxDuration) {
+            stopRecording();
+            return maxDuration;
+          }
+          return newTime;
+        });
+      }, 1000);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast({
+        title: "Recording Error",
+        description: error instanceof Error ? error.message : "Failed to start recording. Your browser may not support this feature.",
+        variant: "destructive",
+      });
+    }
   };
 
   const stopRecording = async () => {
@@ -153,17 +175,22 @@ const VideoManager: React.FC = () => {
     }
 
     try {
-      const videoBlob = await stopVideoRecording(mediaState);
-      const url = URL.createObjectURL(videoBlob);
-      setPreviewUrl(url);
-      setRecording(false);
+      // Only stop the recorder if it's not already inactive
+      if (mediaState.recorder.state !== 'inactive') {
+        const videoBlob = await stopVideoRecording(mediaState);
+        const url = URL.createObjectURL(videoBlob);
+        setPreviewUrl(url);
+        setRecording(false);
 
-      // Store the response if we're not just previewing
-      if (status === 'video_questions') {
-        addVideoResponse({
-          questionId: currentQuestionData.id,
-          videoBlob,
-        });
+        // Store the response if we're not just previewing
+        if (status === 'video_questions') {
+          addVideoResponse({
+            questionId: currentQuestionData.id,
+            videoBlob,
+          });
+        }
+      } else {
+        setRecording(false);
       }
     } catch (error) {
       console.error('Error stopping recording:', error);
@@ -240,6 +267,28 @@ const VideoManager: React.FC = () => {
     return null;
   };
 
+  // Render alternative content when camera isn't available
+  const renderCameraError = () => (
+    <div className="p-8 text-center">
+      <p className="text-red-500 mb-4">{cameraError || "Camera access is not available"}</p>
+      <p className="mb-4">Your browser might not support camera access, or permissions may be blocked.</p>
+      <Button 
+        onClick={initializeCamera}
+        className="bg-finesse-600 hover:bg-finesse-700 text-white mb-4"
+      >
+        Try Again
+      </Button>
+      {(status === 'video_intro' || status === 'video_questions') && (
+        <Button 
+          onClick={() => setStatus('document_upload')}
+          variant="outline"
+        >
+          Skip Video Section
+        </Button>
+      )}
+    </div>
+  );
+
   return (
     <Card className="mx-auto max-w-3xl glass-card p-6 animate-slide-up">
       {renderVideoInstructions()}
@@ -251,7 +300,9 @@ const VideoManager: React.FC = () => {
           </div>
         )}
 
-        {!previewUrl ? (
+        {cameraError ? (
+          renderCameraError()
+        ) : !previewUrl ? (
           <video
             ref={videoRef}
             autoPlay
@@ -287,7 +338,7 @@ const VideoManager: React.FC = () => {
       )}
 
       <div className="flex items-center justify-center gap-4">
-        {!recording && !previewUrl && (
+        {!recording && !previewUrl && !cameraError && (
           <Button
             onClick={startCountdown}
             className="bg-finesse-600 hover:bg-finesse-700 text-white transition-all"
