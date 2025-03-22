@@ -1,45 +1,88 @@
-
 export const startVideoRecording = async (): Promise<{
   stream: MediaStream;
   recorder: MediaRecorder;
   chunks: BlobPart[];
 }> => {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    // First check if MediaRecorder is available in the browser
+    if (typeof MediaRecorder === 'undefined') {
+      throw new Error('MediaRecorder is not supported in this browser');
+    }
+    
+    // Request camera and microphone access
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      video: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: "user"
+      }, 
+      audio: true 
+    });
     
     // Check for supported MIME types
     const mimeTypes = [
       'video/webm;codecs=vp9,opus',
       'video/webm;codecs=vp8,opus',
       'video/webm',
-      'video/mp4'
+      'video/mp4',
+      ''  // Empty string means let the browser choose
     ];
     
     let selectedMimeType = '';
     for (const mimeType of mimeTypes) {
-      if (MediaRecorder.isTypeSupported(mimeType)) {
+      if (mimeType === '' || MediaRecorder.isTypeSupported(mimeType)) {
         selectedMimeType = mimeType;
         break;
       }
     }
     
-    if (!selectedMimeType) {
-      throw new Error('No supported MIME type found for MediaRecorder');
+    // Create recorder with lower bitrate and options
+    const options: MediaRecorderOptions = {};
+    
+    if (selectedMimeType) {
+      options.mimeType = selectedMimeType;
     }
+    
+    // Use lower bitrates to increase compatibility
+    options.audioBitsPerSecond = 128000;
+    options.videoBitsPerSecond = 2500000;
+    
+    try {
+      const recorder = new MediaRecorder(stream, options);
+      const chunks: BlobPart[] = [];
 
-    const recorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
-    const chunks: BlobPart[] = [];
+      recorder.addEventListener('dataavailable', (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      });
 
-    recorder.addEventListener('dataavailable', (e) => {
-      if (e.data.size > 0) {
-        chunks.push(e.data);
-      }
-    });
+      // Test if the recorder is really working
+      recorder.addEventListener('error', (event) => {
+        console.error('MediaRecorder error:', event);
+        throw new Error('MediaRecorder encountered an error');
+      });
 
-    return { stream, recorder, chunks };
+      return { stream, recorder, chunks };
+    } catch (recorderError) {
+      console.error('Error creating MediaRecorder:', recorderError);
+      
+      // Last resort - try with no options at all
+      console.log('Trying with default recorder options');
+      const recorder = new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+      
+      recorder.addEventListener('dataavailable', (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      });
+      
+      return { stream, recorder, chunks };
+    }
   } catch (error) {
     console.error('Error accessing camera:', error);
-    throw new Error('Could not access camera. Please check permissions and try again.');
+    throw new Error('Could not access camera or initialize recorder. Please check permissions and try again.');
   }
 };
 
