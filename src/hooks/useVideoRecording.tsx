@@ -99,7 +99,7 @@ export const useVideoRecording = ({ maxDuration }: UseVideoRecordingProps) => {
 
   // Stop recording and create preview
   const stopRecording = async () => {
-    if (!mediaState.recorder || !mediaState.stream) return;
+    if (!mediaState.recorder || !mediaState.stream) return null;
 
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -184,6 +184,7 @@ export const useVideoRecording = ({ maxDuration }: UseVideoRecordingProps) => {
     stopCamera,
     startCountdown,
     stopRecording,
-    handleReRecord
+    handleReRecord,
+    setPreviewUrl
   };
 };

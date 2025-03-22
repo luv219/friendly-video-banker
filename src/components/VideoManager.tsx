@@ -68,7 +68,6 @@ const VideoManager: React.FC = () => {
       // If it's a question, move to the next question or to processing
       if (currentQuestion < loanApplicationQuestions.length - 1) {
         setCurrentQuestion(currentQuestion + 1);
-        setPreviewUrl(null);
       } else {
         setStatus('processing');
       }
