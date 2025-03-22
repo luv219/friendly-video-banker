@@ -48,15 +48,25 @@ export const createVideoPreview = (blob: Blob): string => {
   return URL.createObjectURL(blob);
 };
 
+// Define a FaceDetector interface for TypeScript
+interface FaceDetectorInterface {
+  detect: (element: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement) => Promise<{ boundingBox: DOMRect }[]>;
+}
+
 // Basic face detection using the browser API
 export const detectFace = async (videoElement: HTMLVideoElement): Promise<boolean> => {
-  if (!window.FaceDetector) {
+  // Check if FaceDetector is available in the browser
+  const hasFaceDetectorAPI = 'FaceDetector' in window;
+  
+  if (!hasFaceDetectorAPI) {
     console.warn('FaceDetector is not available in this browser');
     return true; // Assuming face is present if detection is not available
   }
 
   try {
-    const faceDetector = new window.FaceDetector();
+    // Type assertion for FaceDetector
+    const FaceDetector = (window as any).FaceDetector;
+    const faceDetector = new FaceDetector() as FaceDetectorInterface;
     const faces = await faceDetector.detect(videoElement);
     return faces.length > 0;
   } catch (error) {

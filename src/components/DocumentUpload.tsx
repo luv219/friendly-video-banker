@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { useApplication } from '@/contexts/ApplicationContext';
 import { DocumentType, processDocument, validateDocument } from '@/utils/documentUtils';
@@ -70,7 +69,7 @@ const DocumentUpload: React.FC = () => {
         type: currentDocType,
         file,
         status: 'verified',
-        details,
+        details: details as Record<string, string>,
       });
       
       // Update the uploaded documents state
